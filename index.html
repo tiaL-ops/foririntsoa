@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>for Irintsoa</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(160deg, #fdf6f0, #f6e8f0);
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #4a3b3b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 60px;
+  }
+
+  .intro {
+    max-width: 480px;
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .intro p {
+    margin: 6px 0;
+    line-height: 1.5;
+    font-size: 1.05rem;
+  }
+
+  .intro p:first-child {
+    font-size: 1.3rem;
+    font-weight: 600;
+  }
+
+  .puzzle-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .reference {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .reference span {
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #a3898f;
+  }
+
+  .reference img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid #fff;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  }
+
+  .board {
+    display: grid;
+    background: #fff;
+    padding: 6px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  }
+
+  .slot, .tray-slot {
+    position: relative;
+    background: #f1e7e9;
+    border: 1px dashed #d8c4c9;
+  }
+
+  .tray {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    gap: 14px;
+    padding: 14px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  }
+
+  .piece {
+    position: absolute;
+    cursor: grab;
+    touch-action: none;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+  }
+
+  .piece.dragging {
+    cursor: grabbing;
+    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.45));
+    transform: scale(1.04);
+  }
+
+  .win-message {
+    margin-top: 20px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #c26a86;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+
+  .win-message.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+  <div class="intro">
+    <p>Hi Irintsoa,</p>
+    <p>Been a while, I have been thinking of you lately.</p>
+    <p>That meal in Japan stays with me, haha.</p>
+    <p>I tried to buy e-gift tickets from coffee shops to gift you, but my card never works for Japan stores :(</p>
+    <p>So I know this isn't really worth a latte...</p>
+    <p>...but I coded this little thing for you.</p>
+  </div>
+
+  <div class="puzzle-wrap">
+    <div class="reference">
+      <span>how it should look</span>
+      <img src="assets/IMG_0298.JPG" alt="reference">
+    </div>
+
+    <div id="board" class="board"></div>
+    <div id="tray" class="tray"></div>
+
+    <div id="winMessage" class="win-message">You did it! 🧩❤️</div>
+  </div>
+
+<script>
+(function () {
+  const IMAGE_SRC = 'assets/IMG_0298.JPG';
+  const TARGET_PIECES = 24; // harder, smaller pieces
+  const BOARD_WIDTH = 340;
+
+  const board = document.getElementById('board');
+  const tray = document.getElementById('tray');
+  const winMessage = document.getElementById('winMessage');
+
+  const img = new Image();
+  img.onload = init;
+  img.src = IMAGE_SRC;
+
+  function init() {
+    const aspect = img.naturalWidth / img.naturalHeight;
+    let cols = Math.round(Math.sqrt(TARGET_PIECES * aspect));
+    let rows = Math.round(TARGET_PIECES / cols);
+    cols = Math.min(Math.max(cols, 3), 8);
+    rows = Math.min(Math.max(rows, 3), 8);
+
+    const boardWidth = BOARD_WIDTH;
+    const boardHeight = boardWidth / aspect;
+    const cellW = boardWidth / cols;
+    const cellH = boardHeight / rows;
+    const tabSize = Math.min(cellW, cellH) * 0.28;
+
+    // pre-render the photo at board resolution so every piece samples the same crisp pixels
+    const fullCanvas = document.createElement('canvas');
+    fullCanvas.width = boardWidth;
+    fullCanvas.height = boardHeight;
+    fullCanvas.getContext('2d').drawImage(img, 0, 0, boardWidth, boardHeight);
+
+    board.style.gridTemplateColumns = `repeat(${cols}, ${cellW}px)`;
+    board.style.gridTemplateRows = `repeat(${rows}, ${cellH}px)`;
+    board.style.gap = '0px';
+    tray.style.maxWidth = (boardWidth + tabSize * 4) + 'px';
+
+    // random tab direction per internal border, shared between the two neighboring pieces
+    const H = [];
+    for (let r = 0; r < rows - 1; r++) {
+      H.push(Array.from({ length: cols }, () => (Math.random() < 0.5 ? 1 : -1)));
+    }
+    const V = [];
+    for (let r = 0; r < rows; r++) {
+      V.push(Array.from({ length: cols - 1 }, () => (Math.random() < 0.5 ? 1 : -1)));
+    }
+
+    function edgeSegment(ctx, x1, y1, x2, y2, sign) {
+      const dx = x2 - x1, dy = y2 - y1;
+      const len = Math.hypot(dx, dy);
+      const angle = Math.atan2(dy, dx);
+      ctx.save();
+      ctx.translate(x1, y1);
+      ctx.rotate(angle);
+      if (sign === 0) {
+        ctx.lineTo(len, 0);
+      } else {
+        const neck = len * 0.16;
+        const mid = len / 2;
+        const bump = -tabSize * sign;
+        ctx.lineTo(mid - neck, 0);
+        ctx.bezierCurveTo(mid - neck, bump * 0.6, mid - neck * 1.7, bump, mid, bump);
+        ctx.bezierCurveTo(mid + neck * 1.7, bump, mid + neck, bump * 0.6, mid + neck, 0);
+        ctx.lineTo(len, 0);
+      }
+      ctx.restore();
+    }
+
+    function piecePath(ctx, ox, oy, topSign, rightSign, bottomSign, leftSign) {
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      edgeSegment(ctx, ox, oy, ox + cellW, oy, topSign);
+      edgeSegment(ctx, ox + cellW, oy, ox + cellW, oy + cellH, rightSign);
+      edgeSegment(ctx, ox + cellW, oy + cellH, ox, oy + cellH, bottomSign);
+      edgeSegment(ctx, ox, oy + cellH, ox, oy, leftSign);
+      ctx.closePath();
+    }
+
+    const totalPieces = rows * cols;
+    const boardSlots = [];
+    const traySlots = [];
+
+    for (let i = 0; i < totalPieces; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.style.width = cellW + 'px';
+      slot.style.height = cellH + 'px';
+      slot.dataset.index = i;
+      board.appendChild(slot);
+      boardSlots.push(slot);
+    }
+
+    for (let i = 0; i < totalPieces; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'tray-slot';
+      slot.style.width = cellW + 'px';
+      slot.style.height = cellH + 'px';
+      tray.appendChild(slot);
+      traySlots.push(slot);
+    }
+
+    const allSlots = boardSlots.concat(traySlots);
+
+    const order = Array.from({ length: totalPieces }, (_, i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    const padCanvasW = cellW + tabSize * 2;
+    const padCanvasH = cellH + tabSize * 2;
+
+    order.forEach((correctIndex, trayPos) => {
+      const r = Math.floor(correctIndex / cols);
+      const c = correctIndex % cols;
+
+      const topSign = r > 0 ? -H[r - 1][c] : 0;
+      const bottomSign = r < rows - 1 ? H[r][c] : 0;
+      const leftSign = c > 0 ? -V[r][c - 1] : 0;
+      const rightSign = c < cols - 1 ? V[r][c] : 0;
+
+      const piece = document.createElement('canvas');
+      piece.className = 'piece';
+      piece.width = padCanvasW * dpr;
+      piece.height = padCanvasH * dpr;
+      piece.style.width = padCanvasW + 'px';
+      piece.style.height = padCanvasH + 'px';
+      piece.style.left = -tabSize + 'px';
+      piece.style.top = -tabSize + 'px';
+      piece.dataset.correctIndex = correctIndex;
+      piece.style.zIndex = correctIndex + 1;
+
+      const ctx = piece.getContext('2d');
+      ctx.scale(dpr, dpr);
+      piecePath(ctx, tabSize, tabSize, topSign, rightSign, bottomSign, leftSign);
+      ctx.save();
+      ctx.clip();
+      ctx.drawImage(fullCanvas, tabSize - c * cellW, tabSize - r * cellH);
+      ctx.restore();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.stroke();
+
+      traySlots[trayPos].appendChild(piece);
+      attachDrag(piece);
+    });
+
+    function attachDrag(piece) {
+      let originSlot = null;
+      const baseZ = piece.style.zIndex;
+
+      function resetPosition() {
+        piece.style.position = 'absolute';
+        piece.style.left = -tabSize + 'px';
+        piece.style.top = -tabSize + 'px';
+        piece.style.zIndex = baseZ;
+      }
+
+      piece.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        originSlot = piece.parentElement;
+        piece.classList.add('dragging');
+        piece.style.zIndex = 9999;
+        piece.setPointerCapture(e.pointerId);
+      });
+
+      piece.addEventListener('pointermove', (e) => {
+        if (!piece.classList.contains('dragging')) return;
+        piece.style.position = 'fixed';
+        piece.style.left = (e.clientX - padCanvasW / 2) + 'px';
+        piece.style.top = (e.clientY - padCanvasH / 2) + 'px';
+      });
+
+      function endDrag(e) {
+        if (!piece.classList.contains('dragging')) return;
+        piece.classList.remove('dragging');
+
+        piece.style.visibility = 'hidden';
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        piece.style.visibility = '';
+
+        const targetSlot = target && target.closest('.slot, .tray-slot');
+        if (!targetSlot || !allSlots.includes(targetSlot) || targetSlot === originSlot) {
+          originSlot.appendChild(piece);
+          resetPosition();
+          return;
+        }
+
+        const occupant = targetSlot.firstElementChild;
+        if (occupant) {
+          originSlot.appendChild(occupant);
+          occupant.style.position = 'absolute';
+          occupant.style.left = -tabSize + 'px';
+          occupant.style.top = -tabSize + 'px';
+        }
+        targetSlot.appendChild(piece);
+        resetPosition();
+
+        checkWin();
+      }
+
+      piece.addEventListener('pointerup', endDrag);
+      piece.addEventListener('pointercancel', endDrag);
+    }
+
+    function checkWin() {
+      const solved = boardSlots.every((slot) => {
+        const piece = slot.firstElementChild;
+        return piece && Number(piece.dataset.correctIndex) === Number(slot.dataset.index);
+      });
+      winMessage.classList.toggle('show', solved);
+    }
+  }
+})();
+</script>
+</body>
+</html>
