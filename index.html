@@ -227,7 +227,8 @@
       } else {
         const sign = flip ? -edge.sign : edge.sign;
         const neck = len * 0.16 * edge.neckMul;
-        const mid = len / 2 + edge.offset * len;
+        const reversed = x2 < x1 || y2 < y1;
+	const mid = len / 2 + (reversed ? -1 : 1) * edge.offset * len;
         const bump = -tabSize * edge.sizeMul * sign;
         ctx.lineTo(mid - neck, 0);
         ctx.bezierCurveTo(mid - neck, bump * 0.6, mid - neck * 1.7, bump, mid, bump);
@@ -361,9 +362,10 @@
 
         piece.style.visibility = 'hidden';
         const target = document.elementFromPoint(e.clientX, e.clientY);
-        piece.style.visibility = '';
 
-        const targetSlot = target && target.closest('.slot');
+	piece.style.visibility = '';
+	const targetSlot = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.classList.contains('slot'));
+
         if (!targetSlot || !boardSlots.includes(targetSlot)) {
           dropOnStage(e.clientX, e.clientY);
           return;
@@ -372,7 +374,7 @@
         const occupant = targetSlot.firstElementChild;
         dropOnSlot(targetSlot);
 
-        if (occupant) {
+        if (occupant && occupant !== piece) {
           const pos = randomScatterPos();
           occupant.style.position = 'absolute';
           occupant.style.left = pos.x + 'px';
